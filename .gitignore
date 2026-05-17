@@ -37,3 +37,4 @@ test_*.js
 backend/test_*.js
 backend/update_images*.js
 backend/update_seed.js
+mobile/app/(tabs)/.menu.tsx.swp

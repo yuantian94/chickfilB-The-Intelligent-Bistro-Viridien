@@ -25,6 +25,7 @@ app.use('/api/cart', require('./routes/cart'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/guest', require('./routes/guest'));
 
 // Health check
 app.get('/api/health', (req, res) => {

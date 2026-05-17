@@ -24,18 +24,65 @@ router.post('/register', (req, res) => {
     'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)'
   ).run(email, passwordHash, name);
 
+  const userId = result.lastInsertRowid;
+
   // Initialize rewards
-  db.prepare('INSERT INTO rewards (user_id, points, tier) VALUES (?, 0, ?)').run(result.lastInsertRowid, 'member');
+  db.prepare('INSERT INTO rewards (user_id, points, tier) VALUES (?, 0, ?)').run(userId, 'member');
+
+  // Migrate guest orders matching this email
+  let migratedCount = 0;
+  let totalPointsEarned = 0;
+  const guestOrders = db.prepare(
+    "SELECT * FROM guest_orders WHERE guest_email = ? AND created_at >= datetime('now', '-1 day')"
+  ).all(email);
+
+  for (const go of guestOrders) {
+    const pointsEarned = Math.floor(go.total * 10);
+    totalPointsEarned += pointsEarned;
+
+    const orderResult = db.prepare(
+      'INSERT INTO orders (user_id, order_type, address, subtotal, tax, total, points_earned, points_redeemed) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
+    ).run(userId, go.order_type, go.address, go.subtotal, go.tax, go.total, pointsEarned);
+
+    const newOrderId = orderResult.lastInsertRowid;
+
+    // Copy items
+    const guestItems = db.prepare('SELECT * FROM guest_order_items WHERE guest_order_id = ?').all(go.id);
+    const insertItem = db.prepare(
+      'INSERT INTO order_items (order_id, menu_item_id, name, price, quantity, calories, modifiers, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    for (const item of guestItems) {
+      insertItem.run(newOrderId, item.menu_item_id, item.name, item.price, item.quantity, item.calories, item.modifiers, item.image_url);
+    }
+    migratedCount++;
+  }
+
+  // Award points from migrated orders
+  if (totalPointsEarned > 0) {
+    db.prepare('UPDATE rewards SET points = points + ?, total_points_earned = total_points_earned + ? WHERE user_id = ?')
+      .run(totalPointsEarned, totalPointsEarned, userId);
+  }
+
+  // Clean up migrated guest data
+  if (guestOrders.length > 0) {
+    const guestOrderIds = guestOrders.map(go => go.id);
+    for (const gid of guestOrderIds) {
+      db.prepare('DELETE FROM guest_order_items WHERE guest_order_id = ?').run(gid);
+      db.prepare('DELETE FROM guest_orders WHERE id = ?').run(gid);
+    }
+  }
 
   const token = jwt.sign(
-    { id: result.lastInsertRowid, email, name },
+    { id: userId, email, name },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
 
   res.status(201).json({
     token,
-    user: { id: result.lastInsertRowid, email, name }
+    user: { id: userId, email, name },
+    migratedOrders: migratedCount,
+    pointsEarned: totalPointsEarned
   });
 });
 

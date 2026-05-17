@@ -21,11 +21,23 @@ function parseAddress(addr) {
 let state = {
   user: null,
   cartCount: 0,
+  cartPointsUsed: 0,
   currentPage: 'home',
   lastMainTab: 'home',
   chatSessionId: null,
-  chatMutatedData: false
+  chatMutatedData: false,
+  guestCheckoutEmail: null  // set after guest checkout for register pre-fill
 };
+
+// Generate or retrieve a persistent guest token for non-logged-in cart
+function getGuestToken() {
+  let token = localStorage.getItem('guestToken');
+  if (!token) {
+    token = 'guest_' + crypto.randomUUID();
+    localStorage.setItem('guestToken', token);
+  }
+  return token;
+}
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (token) {
     fetchUser(token);
   } else {
+    updateCartCount(); // Load guest cart count
     updateChatState();
     navigate('home');
   }
@@ -92,6 +105,9 @@ function navigate(page, force = false) {
       break;
     case 'checkout':
       renderCheckout(header, container);
+      break;
+    case 'guest-checkout':
+      renderGuestCheckout(header, container);
       break;
     case 'profile-settings':
       renderProfileSettings(header, container);
@@ -200,6 +216,47 @@ async function login() {
   }
 }
 
+async function register() {
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm = document.getElementById('reg-confirm').value;
+
+  if (!name) { showToast('Name is required'); return; }
+  if (!email) { showToast('Email is required'); return; }
+  if (password.length < 6) { showToast('Password must be at least 6 characters'); return; }
+  if (password !== confirm) { showToast('Passwords do not match'); return; }
+
+  try {
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem('token', data.token);
+      showToast('Account created! Welcome to Chick-fil-B! 🎉');
+      await fetchUser(data.token);
+      navigate('home');
+    } else {
+      showToast(data.error || 'Registration failed');
+    }
+  } catch (e) {
+    showToast('Network error');
+  }
+}
+
+function toggleAuthForm() {
+  const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
+  if (loginForm && registerForm) {
+    loginForm.classList.toggle('hidden');
+    registerForm.classList.toggle('hidden');
+  }
+}
+
 async function logout() {
   if (state.user) {
     try {
@@ -221,16 +278,22 @@ async function logout() {
 
 // --- Cart ---
 async function updateCartCount() {
-  if (!state.user) return;
   try {
-    const res = await fetch(`${API_URL}/cart`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    });
+    let res;
+    if (state.user) {
+      res = await fetch(`${API_URL}/cart`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+    } else {
+      res = await fetch(`${API_URL}/guest/cart`, {
+        headers: { 'X-Guest-Token': getGuestToken() }
+      });
+    }
     if (res.ok) {
       const data = await res.json();
       state.cartCount = data.itemCount;
       if (state.user) state.user.points = data.points;
-      state.cartPointsUsed = data.items.reduce((sum, item) => {
+      state.cartPointsUsed = (data.items || []).reduce((sum, item) => {
         let pts = 0;
         try {
           const mods = JSON.parse(item.modifiers || '[]');
@@ -255,20 +318,27 @@ async function addToCart(menuItemId) {
     if (isNaN(quantity) || quantity < 1) quantity = 1;
   }
 
-  if (!state.user) {
-    showToast('Please login to order');
-    navigate('account');
-    return;
-  }
   try {
-    const res = await fetch(`${API_URL}/cart`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ menuItemId, quantity })
-    });
+    let res;
+    if (state.user) {
+      res = await fetch(`${API_URL}/cart`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ menuItemId, quantity })
+      });
+    } else {
+      res = await fetch(`${API_URL}/guest/cart`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Guest-Token': getGuestToken()
+        },
+        body: JSON.stringify({ menuItemId, quantity })
+      });
+    }
     
     if (res.ok) {
       const data = await res.json();
@@ -333,14 +403,25 @@ async function redeemReward(menuItemId, price, points) {
 
 async function updateCartItem(cartItemId, newQty) {
   try {
-    await fetch(`${API_URL}/cart/${cartItemId}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ quantity: newQty })
-    });
+    if (state.user) {
+      await fetch(`${API_URL}/cart/${cartItemId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ quantity: newQty })
+      });
+    } else {
+      await fetch(`${API_URL}/guest/cart/${cartItemId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Guest-Token': getGuestToken()
+        },
+        body: JSON.stringify({ quantity: newQty })
+      });
+    }
     
     if (state.currentPage === 'cart') {
       const header = document.getElementById('header-container');
@@ -910,11 +991,9 @@ async function loadCategory(slug, searchQuery = null) {
 
 async function renderCart(header, container) {
   renderHeader(header, 'My Bag', false, state.lastMainTab);
-  if (!state.user) {
-    navigate('account');
-    showToast('Sign in to view your bag');
-    return;
-  }
+  
+  const isGuest = !state.user;
+  const checkoutPage = isGuest ? 'guest-checkout' : 'checkout';
   
   if (!document.getElementById('cart-items')) {
     container.innerHTML = `
@@ -925,8 +1004,8 @@ async function renderCart(header, container) {
       </div>
       <div id="checkout-btn-area" class="fixed left-0 w-full px-container-padding pb-stack-md z-40 bg-surface hidden" style="bottom: 72px;">
         <div class="pointer-events-auto shadow-[0_-2px_20px_rgba(0,0,0,0.08)] rounded-full bg-primary overflow-hidden max-w-3xl mx-auto">
-          <button onclick="navigate('checkout')" class="w-full bg-primary text-on-primary py-4 px-6 flex justify-between items-center hover:bg-primary-container transition-colors focus:outline-none focus:ring-4 focus:ring-primary-fixed-dim">
-            <span class="text-label-lg font-label-lg">Check Out</span>
+          <button onclick="navigate('${checkoutPage}')" class="w-full bg-primary text-on-primary py-4 px-6 flex justify-between items-center hover:bg-primary-container transition-colors focus:outline-none focus:ring-4 focus:ring-primary-fixed-dim">
+            <span class="text-label-lg font-label-lg">${isGuest ? 'Guest Checkout' : 'Check Out'}</span>
             <span id="checkout-total" class="text-headline-md font-headline-md"></span>
           </button>
         </div>
@@ -935,9 +1014,16 @@ async function renderCart(header, container) {
   }
   
   try {
-    const res = await fetch(`${API_URL}/cart`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    });
+    let res;
+    if (state.user) {
+      res = await fetch(`${API_URL}/cart`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+    } else {
+      res = await fetch(`${API_URL}/guest/cart`, {
+        headers: { 'X-Guest-Token': getGuestToken() }
+      });
+    }
     const data = await res.json();
     
     document.getElementById('cart-loading').style.display = 'none';
@@ -1428,7 +1514,8 @@ async function renderAccount(header, container) {
   } else {
     container.innerHTML = `
       <div class="px-container-padding pt-stack-lg max-w-md mx-auto w-full">
-        <div class="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-surface-variant">
+        <!-- Login Form -->
+        <div id="login-form" class="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-surface-variant">
           <h2 class="text-headline-lg font-headline-lg mb-6 text-center">Welcome Back</h2>
           <div class="flex flex-col gap-4">
             <div>
@@ -1442,11 +1529,226 @@ async function renderAccount(header, container) {
             <button onclick="login()" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-lg hover:bg-primary-container transition-colors mt-2">
               Sign In
             </button>
+            <button onclick="toggleAuthForm()" class="w-full text-primary font-label-md py-2 hover:underline transition-colors">
+              Don't have an account? Create one
+            </button>
+          </div>
+        </div>
+
+        <!-- Register Form (hidden by default) -->
+        <div id="register-form" class="hidden bg-surface-container-lowest rounded-xl p-gutter shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-surface-variant">
+          <h2 class="text-headline-lg font-headline-lg mb-6 text-center">Create Account</h2>
+          <div class="flex flex-col gap-4">
+            <div>
+              <label class="block text-label-sm mb-1 text-secondary">Full Name</label>
+              <input type="text" id="reg-name" placeholder="John Doe" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-label-sm mb-1 text-secondary">Email</label>
+              <input type="email" id="reg-email" placeholder="you@example.com" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-label-sm mb-1 text-secondary">Password</label>
+              <input type="password" id="reg-password" placeholder="Min 6 characters" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-label-sm mb-1 text-secondary">Confirm Password</label>
+              <input type="password" id="reg-confirm" placeholder="Re-enter password" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            </div>
+            <button onclick="register()" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-lg hover:bg-primary-container transition-colors mt-2">
+              Create Account
+            </button>
+            <button onclick="toggleAuthForm()" class="w-full text-primary font-label-md py-2 hover:underline transition-colors">
+              Already have an account? Sign In
+            </button>
           </div>
         </div>
       </div>
     `;
   }
+}
+
+// --- Guest Checkout ---
+async function renderGuestCheckout(header, container) {
+  renderHeader(header, 'Guest Checkout', false, 'cart');
+
+  container.innerHTML = `
+    <div class="px-container-padding pt-stack-lg max-w-lg mx-auto w-full pb-40">
+      <div class="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-surface-variant flex flex-col gap-6">
+        <h2 class="text-headline-md font-headline-md text-center">Guest Checkout</h2>
+        <p class="text-body-sm text-secondary text-center -mt-4">No account needed — a receipt will be sent to your email.</p>
+
+        <!-- Email -->
+        <div>
+          <label class="block text-label-sm mb-1 text-secondary">Email (for receipt)</label>
+          <input type="email" id="guest-email" placeholder="you@example.com" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+        </div>
+
+        <!-- Order Type -->
+        <div>
+          <label class="block text-label-sm mb-2 text-secondary">Order Type</label>
+          <div class="flex gap-2">
+            <button id="guest-type-pickup" onclick="setGuestOrderType('pickup')" class="flex-1 py-3 rounded-full text-label-lg font-label-lg bg-primary text-on-primary transition-colors">Pickup</button>
+            <button id="guest-type-delivery" onclick="setGuestOrderType('delivery')" class="flex-1 py-3 rounded-full text-label-lg font-label-lg bg-surface-container text-on-surface transition-colors">Delivery</button>
+          </div>
+        </div>
+
+        <!-- Pickup Location Selector (shown by default) -->
+        <div id="guest-location-section" class="flex flex-col gap-3">
+          <label class="block text-label-sm mb-1 text-secondary">Select Pickup Location</label>
+          <button onclick="selectGuestLocation('loc1')" id="guest-loc-loc1" class="w-full text-left p-4 rounded-xl border-2 border-primary bg-primary/5 flex justify-between items-center transition-colors">
+            <div><div class="font-bold text-on-surface">Chick-fil-B Downtown</div><div class="text-body-sm text-secondary mt-0.5">1.2 mi • Ready in <span class="text-primary font-bold">10-15 min</span></div></div>
+            <span class="material-symbols-outlined text-primary">check_circle</span>
+          </button>
+          <button onclick="selectGuestLocation('loc2')" id="guest-loc-loc2" class="w-full text-left p-4 rounded-xl border border-surface-variant hover:border-primary/50 flex justify-between items-center transition-colors">
+            <div><div class="font-bold text-on-surface">Chick-fil-B Northside</div><div class="text-body-sm text-secondary mt-0.5">3.4 mi • Ready in <span class="text-primary font-bold">15-20 min</span></div></div>
+            <span class="material-symbols-outlined text-transparent">check_circle</span>
+          </button>
+          <button onclick="selectGuestLocation('loc3')" id="guest-loc-loc3" class="w-full text-left p-4 rounded-xl border border-surface-variant hover:border-primary/50 flex justify-between items-center transition-colors">
+            <div><div class="font-bold text-on-surface">Chick-fil-B Westend</div><div class="text-body-sm text-secondary mt-0.5">5.1 mi • Ready in <span class="text-primary font-bold">20-25 min</span></div></div>
+            <span class="material-symbols-outlined text-transparent">check_circle</span>
+          </button>
+        </div>
+
+        <!-- Delivery Address (hidden by default) -->
+        <div id="guest-address-section" class="hidden flex flex-col gap-3">
+          <label class="block text-label-sm mb-1 text-secondary">Delivery Address</label>
+          <input type="text" id="guest-addr-street" placeholder="Street Address" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+          <div class="flex gap-2">
+            <input type="text" id="guest-addr-city" placeholder="City" class="flex-1 bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            <input type="text" id="guest-addr-state" placeholder="State" class="w-20 bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            <input type="text" id="guest-addr-zip" placeholder="Zip" class="w-24 bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Payment -->
+        <div>
+          <label class="block text-label-sm mb-2 text-secondary">Payment Details</label>
+          <div class="flex flex-col gap-3">
+            <input type="text" id="guest-card-name" placeholder="Name on Card" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            <input type="text" id="guest-card-num" placeholder="Card Number" maxlength="19" class="w-full bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            <div class="flex gap-2">
+              <input type="text" id="guest-card-exp" placeholder="MM/YY" maxlength="5" class="flex-1 bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+              <input type="text" id="guest-card-cvc" placeholder="CVC" maxlength="4" class="flex-1 bg-surface-container-low border border-surface-variant rounded-lg py-3 px-4 focus:border-primary focus:outline-none">
+            </div>
+          </div>
+        </div>
+
+        <button onclick="submitGuestCheckout()" class="w-full bg-primary text-on-primary py-4 rounded-full font-label-lg hover:bg-primary-container transition-colors mt-2">
+          Place Guest Order
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+let guestOrderType = 'pickup';
+let guestLocationId = 'loc1';
+const guestLocations = {
+  loc1: 'Chick-fil-B Downtown',
+  loc2: 'Chick-fil-B Northside',
+  loc3: 'Chick-fil-B Westend',
+};
+
+function selectGuestLocation(locId) {
+  guestLocationId = locId;
+  ['loc1', 'loc2', 'loc3'].forEach(id => {
+    const el = document.getElementById('guest-loc-' + id);
+    if (!el) return;
+    if (id === locId) {
+      el.className = 'w-full text-left p-4 rounded-xl border-2 border-primary bg-primary/5 flex justify-between items-center transition-colors';
+      el.querySelector('.material-symbols-outlined').className = 'material-symbols-outlined text-primary';
+    } else {
+      el.className = 'w-full text-left p-4 rounded-xl border border-surface-variant hover:border-primary/50 flex justify-between items-center transition-colors';
+      el.querySelector('.material-symbols-outlined').className = 'material-symbols-outlined text-transparent';
+    }
+  });
+}
+
+function setGuestOrderType(type) {
+  guestOrderType = type;
+  document.getElementById('guest-type-pickup').className = type === 'pickup'
+    ? 'flex-1 py-3 rounded-full text-label-lg font-label-lg bg-primary text-on-primary transition-colors'
+    : 'flex-1 py-3 rounded-full text-label-lg font-label-lg bg-surface-container text-on-surface transition-colors';
+  document.getElementById('guest-type-delivery').className = type === 'delivery'
+    ? 'flex-1 py-3 rounded-full text-label-lg font-label-lg bg-primary text-on-primary transition-colors'
+    : 'flex-1 py-3 rounded-full text-label-lg font-label-lg bg-surface-container text-on-surface transition-colors';
+  document.getElementById('guest-address-section').classList.toggle('hidden', type !== 'delivery');
+  document.getElementById('guest-location-section').classList.toggle('hidden', type !== 'pickup');
+}
+
+async function submitGuestCheckout() {
+  const email = document.getElementById('guest-email')?.value?.trim();
+  const cardName = document.getElementById('guest-card-name')?.value?.trim();
+  const cardNumber = document.getElementById('guest-card-num')?.value?.trim();
+  const cardExp = document.getElementById('guest-card-exp')?.value?.trim();
+  const cardCvc = document.getElementById('guest-card-cvc')?.value?.trim();
+
+  if (!email) { showToast('Please enter your email'); return; }
+  if (!cardNumber || !cardExp || !cardCvc) { showToast('Please enter your card details'); return; }
+
+  let address = guestLocations[guestLocationId] || 'Chick-fil-B Downtown';
+  if (guestOrderType === 'delivery') {
+    const street = document.getElementById('guest-addr-street')?.value?.trim();
+    const city = document.getElementById('guest-addr-city')?.value?.trim();
+    const st = document.getElementById('guest-addr-state')?.value?.trim();
+    const zip = document.getElementById('guest-addr-zip')?.value?.trim();
+    if (!street || !city || !st || !zip) { showToast('Please enter a complete delivery address'); return; }
+    address = `${street}, ${city}, ${st} ${zip}`;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/guest/checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Guest-Token': getGuestToken() },
+      body: JSON.stringify({ email, orderType: guestOrderType, address, cardName, cardNumber, cardExp, cardCvc })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Checkout failed'); return; }
+
+    state.guestCheckoutEmail = email;
+    state.cartCount = 0;
+    renderHeader(document.getElementById('header-container'), '', false);
+
+    // Show success + register prompt
+    document.getElementById('page-container').innerHTML = `
+      <div class="px-container-padding pt-stack-lg max-w-md mx-auto w-full text-center flex flex-col gap-6 items-center">
+        <div class="text-6xl">🎉</div>
+        <h2 class="text-headline-lg font-headline-lg">Order Placed!</h2>
+        <p class="text-body-lg text-secondary">Your order total: <span class="font-bold text-on-surface">$${data.total.toFixed(2)}</span></p>
+        <p class="text-body-sm text-secondary">A receipt will be sent to <span class="font-bold">${email}</span></p>
+
+        <div class="bg-surface-container-lowest rounded-xl p-gutter shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-surface-variant w-full mt-4">
+          <h3 class="text-headline-md font-headline-md mb-2">Create an Account?</h3>
+          <p class="text-body-sm text-secondary mb-4">Sign up to earn <span class="font-bold text-primary">${Math.floor(data.total * 10)} reward points</span> from this order, track your order history, and unlock exclusive perks!</p>
+          <button onclick="promptGuestRegister()" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-lg hover:bg-primary-container transition-colors">
+            Yes, Create My Account
+          </button>
+          <button onclick="navigate('home')" class="w-full text-secondary py-2 mt-2 hover:underline font-label-md">
+            No thanks, continue as guest
+          </button>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    showToast('Network error during checkout');
+  }
+}
+
+function promptGuestRegister() {
+  // Navigate to account page and pre-fill email, show register form
+  navigate('account');
+  setTimeout(() => {
+    // Toggle to register form and pre-fill email
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    if (loginForm && registerForm) {
+      loginForm.classList.add('hidden');
+      registerForm.classList.remove('hidden');
+      const regEmail = document.getElementById('reg-email');
+      if (regEmail && state.guestCheckoutEmail) regEmail.value = state.guestCheckoutEmail;
+    }
+  }, 100);
 }
 
 async function renderProfileSettings(header, container) {
@@ -1913,8 +2215,9 @@ async function reorderOrder(orderId) {
     
     let itemsAdded = 0;
     let fallbackCount = 0;
-    let currentPointsUsed = state.cartPointsUsed;
-    const availablePoints = (state.user?.rewards?.points || 0) - currentPointsUsed;
+    let redeemedCount = 0;
+    // Use a RUNNING remaining-points counter so each iteration sees the true balance
+    let remainingPoints = (state.user?.rewards?.points || 0) - (state.cartPointsUsed || 0);
     
     for (const item of order.items) {
       let mods = [];
@@ -1925,18 +2228,20 @@ async function reorderOrder(orderId) {
         const redeemMod = mods.find(m => m.name === 'Reward Redemption');
         if (redeemMod) {
           isRedeem = true;
-          pointsCost = item.redeem_points * item.quantity;
+          pointsCost = (redeemMod.points_cost || item.redeem_points) * item.quantity;
         }
       } catch(e) {}
       
       let finalMods = mods;
       if (isRedeem) {
-        if (pointsCost > availablePoints) {
-          // Fallback to regular item
+        if (pointsCost > remainingPoints) {
+          // Insufficient points — strip the Reward Redemption mod, add as regular paid item
           finalMods = mods.filter(m => m.name !== 'Reward Redemption');
           fallbackCount++;
         } else {
-          currentPointsUsed += pointsCost;
+          // Deduct from the running balance so the next item sees the updated total
+          remainingPoints -= pointsCost;
+          redeemedCount++;
         }
       }
       
@@ -1959,7 +2264,9 @@ async function reorderOrder(orderId) {
     if (itemsAdded > 0) {
       await updateCartCount();
       let msg = 'Items added to bag! 🎉';
-      if (fallbackCount > 0) {
+      if (redeemedCount > 0 && fallbackCount === 0) {
+        msg = `Items added! ${redeemedCount} item(s) redeemed with points 🎉`;
+      } else if (fallbackCount > 0) {
         msg = `Items added! (${fallbackCount} reward item(s) added as regular items due to insufficient points)`;
       }
       showToast(msg);

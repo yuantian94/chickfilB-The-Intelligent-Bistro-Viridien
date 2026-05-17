@@ -153,3 +153,44 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
+
+-- Guest shopping cart (identified by guest_token UUID)
+CREATE TABLE IF NOT EXISTS guest_cart_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_token TEXT NOT NULL,
+    menu_item_id INTEGER NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    modifiers TEXT DEFAULT '[]',
+    special_instructions TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+);
+
+-- Guest orders (keyed by email, auto-evict after 1 day)
+CREATE TABLE IF NOT EXISTS guest_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_email TEXT NOT NULL,
+    guest_token TEXT,
+    order_type TEXT DEFAULT 'pickup',
+    address TEXT,
+    subtotal REAL NOT NULL,
+    tax REAL NOT NULL,
+    total REAL NOT NULL,
+    status TEXT DEFAULT 'placed',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Guest order items
+CREATE TABLE IF NOT EXISTS guest_order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_order_id INTEGER NOT NULL,
+    menu_item_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    calories INTEGER,
+    modifiers TEXT DEFAULT '[]',
+    image_url TEXT,
+    FOREIGN KEY (guest_order_id) REFERENCES guest_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+);

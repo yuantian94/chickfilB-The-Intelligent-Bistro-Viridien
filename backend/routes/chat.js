@@ -101,8 +101,7 @@ function getUserContext(db, userId, availablePoints) {
     }).join(', ');
     info += itemsStr + '\n';
 
-    // Calculate if user can afford the reward items in the favorite order
-    let totalFavoritePointsNeeded = 0;
+    // Per-item running-budget calculation for reward items
     const favoriteRewardItems = [];
     items.forEach(i => {
       try {
@@ -110,31 +109,29 @@ function getUserContext(db, userId, availablePoints) {
         if (parsed.find(m => m.name === 'Reward Redemption')) {
           const menuItem = db.prepare('SELECT redeem_points FROM menu_items WHERE name = ?').get(i.name);
           if (menuItem && menuItem.redeem_points) {
-            totalFavoritePointsNeeded += (menuItem.redeem_points * i.quantity);
-            favoriteRewardItems.push(`${i.quantity}x ${i.name}`);
+            favoriteRewardItems.push({ name: i.name, quantity: i.quantity, pointsCost: menuItem.redeem_points * i.quantity });
           }
         }
       } catch(e) {}
     });
 
     if (favoriteRewardItems.length > 0) {
-      const cartItems = db.prepare('SELECT modifiers, quantity FROM cart_items WHERE user_id = ?').all(userId);
-      let cartPointsUsed = 0;
-      cartItems.forEach(ci => {
-        try {
-          const mods = JSON.parse(ci.modifiers || '[]');
-          mods.forEach(m => {
-            if (m.points_cost) cartPointsUsed += (m.points_cost * ci.quantity);
-          });
-        } catch(e) {}
+      // Use the same available points already computed at the top of getUserContext
+      let runningBudget = availablePoints;
+      info += `\n(SYSTEM PER-ITEM REORDER PLAN for Favorite Order — Available points: ${availablePoints}\n`;
+      favoriteRewardItems.forEach(ri => {
+        if (runningBudget >= ri.pointsCost) {
+          info += `  → ${ri.quantity}x ${ri.name} (${ri.pointsCost} pts): REDEEM — use redeem_item_with_points\n`;
+          runningBudget -= ri.pointsCost;
+        } else {
+          info += `  → ${ri.quantity}x ${ri.name} (${ri.pointsCost} pts): REGULAR — use add_to_cart (only ${runningBudget} pts left, need ${ri.pointsCost})\n`;
+        }
       });
-      const availablePoints = (rewards ? rewards.points : 0) - cartPointsUsed;
-      
-      info += `\n(SYSTEM CALCULATION: The reward items in this favorite order (${favoriteRewardItems.join(', ')}) cost ${totalFavoritePointsNeeded} points. The user has ${availablePoints} available points right now. `;
-      if (availablePoints >= totalFavoritePointsNeeded) {
-        info += `Result: YES, the user CAN afford to redeem all of them. Use the redeem_item_with_points tool for these items!)\n`;
+      if (runningBudget < availablePoints) {
+        // Some items were marked REGULAR
+        info += `IMPORTANT: For any item marked REGULAR above, you MUST use add_to_cart (NOT redeem_item_with_points). You MUST list every item in your response. Append this exact sentence at the end: "Items that did not have enough points to redeem were added as regular items.")\n`;
       } else {
-        info += `Result: NO, the user CANNOT afford to redeem all of them. You MUST fallback to adding some/all of them as regular items using add_to_cart. EXTREMELY IMPORTANT: You MUST explicitly list out EVERY single item you added in your chat response, AND you MUST append this EXACT sentence to the END of your chat response: "Items that did not have enough points to redeem were added as regular items.")\n`;
+        info += `All reward items are affordable! Use redeem_item_with_points for each.)\n`;
       }
     }
   }
@@ -147,7 +144,6 @@ function getUserContext(db, userId, availablePoints) {
       const date = new Date(order.created_at).toLocaleDateString();
       info += `- Order #${order.id} (${date}): `;
       const items = db.prepare('SELECT name, quantity, modifiers FROM order_items WHERE order_id = ?').all(order.id);
-      let totalOrderPointsNeeded = 0;
       const orderRewardItems = [];
 
       const itemsStr = items.map(i => {
@@ -159,8 +155,7 @@ function getUserContext(db, userId, availablePoints) {
             isReward = true;
             const menuItem = db.prepare('SELECT redeem_points FROM menu_items WHERE name = ?').get(i.name);
             if (menuItem && menuItem.redeem_points) {
-              totalOrderPointsNeeded += (menuItem.redeem_points * i.quantity);
-              orderRewardItems.push(`${i.quantity}x ${i.name}`);
+              orderRewardItems.push({ name: i.name, quantity: i.quantity, pointsCost: menuItem.redeem_points * i.quantity });
             }
           }
           const filtered = parsed.filter(m => m.name !== 'Reward Redemption');
@@ -172,11 +167,20 @@ function getUserContext(db, userId, availablePoints) {
       info += itemsStr + '\n';
 
       if (orderRewardItems.length > 0) {
-        info += `  (SYSTEM CALCULATION for Order #${order.id}: Reward items cost ${totalOrderPointsNeeded} pts. User has ${availablePoints} available pts right now. `;
-        if (availablePoints >= totalOrderPointsNeeded) {
-          info += `Result: YES, they CAN afford it. Use redeem_item_with_points!)\n`;
+        let runningBudget = availablePoints;
+        info += `  (SYSTEM PER-ITEM REORDER PLAN for Order #${order.id} — Available points: ${availablePoints}\n`;
+        orderRewardItems.forEach(ri => {
+          if (runningBudget >= ri.pointsCost) {
+            info += `    → ${ri.quantity}x ${ri.name} (${ri.pointsCost} pts): REDEEM — use redeem_item_with_points\n`;
+            runningBudget -= ri.pointsCost;
+          } else {
+            info += `    → ${ri.quantity}x ${ri.name} (${ri.pointsCost} pts): REGULAR — use add_to_cart (only ${runningBudget} pts left, need ${ri.pointsCost})\n`;
+          }
+        });
+        if (runningBudget < availablePoints) {
+          info += `  For items marked REGULAR, use add_to_cart. Append: "Items that did not have enough points to redeem were added as regular items.")\n`;
         } else {
-          info += `Result: NO, they CANNOT afford it. Fallback to add_to_cart for some/all! EXTREMELY IMPORTANT: You MUST explicitly list out EVERY single item you added in your chat response, AND you MUST append this EXACT sentence to the END of your chat response: "Items that did not have enough points to redeem were added as regular items.")\n`;
+          info += `  All reward items affordable! Use redeem_item_with_points for each.)\n`;
         }
       }
     });
@@ -201,8 +205,8 @@ Keep your responses concise, friendly, and helpful. Use emojis sparingly. If ask
 When a user asks to "reorder my favorite" or "order my favorite meal", look at their Favorite Order in your context. If it exists, meticulously use the add_to_cart tool for each item (and apply the same modifiers!). If they don't have a favorite order, politely inform them they can set one in their Account Order History. If the user merely asks "what is my favorite order" or "check my favorite", DO NOT use the add_to_cart tool! Just list the items out in text.
 IMPORTANT: You have an add_to_cart tool and a redeem_item_with_points tool. When the user asks you to add items to their bag, order, or cart, you MUST use the add_to_cart tool. When they ask to REDEEM points for a SPECIFIC item, you MUST use the redeem_item_with_points tool. 
 EXTREMELY CRITICAL: If the user asks a hypothetical or informational question like "how many can I redeem?", "can I afford?", "what's in my cart?", DO NOT USE ANY TOOLS! Instead, look at the menu context. Every item has a prefix like [Can afford: X]. You MUST simply tell the user the exact number X for the item they asked about. DO NOT calculate anything, just read the X from the prefix. Pay close attention to item sizes (e.g. Medium vs Large) as they have different affordabilities. ONLY execute the add_to_cart or redeem_item_with_points tool if the user gives a direct, explicit command like "Yes, do it", "Please order it", or "Redeem it now".
-IMPORTANT REORDERING LOGIC: If a user asks to reorder a meal that contains items tagged with '[previously redeemed with points]', you MUST look at the SYSTEM CALCULATION text provided next to that order. If the SYSTEM CALCULATION says "Result: YES", you MUST use the 'redeem_item_with_points' tool for those tagged items. If the SYSTEM CALCULATION says "Result: NO", you MUST use the 'add_to_cart' tool to add those items as regular paid items. NEVER pass '[previously redeemed with points]' into the tool arguments.
-CRITICAL RESPONSE FORMAT FOR REORDERS: Whenever you process a reorder involving '[previously redeemed with points]' items, you MUST explicitly list out EVERY single item you added to their cart! If the SYSTEM CALCULATION was NO, you MUST append this exact fixed sentence to the end of your response: "Items that did not have enough points to redeem were added as regular items." NEVER include the text "Reward Redemption" or "redeemed with points" (whether in brackets, parentheses, or plain text) anywhere in your response unless the item was ACTUALLY successfully redeemed with points in this transaction!
+IMPORTANT REORDERING LOGIC: If a user asks to reorder a meal that contains items tagged with '[previously redeemed with points]', you MUST look at the SYSTEM PER-ITEM REORDER PLAN text provided next to that order. Each item is explicitly marked REDEEM or REGULAR. For items marked REDEEM, use 'redeem_item_with_points'. For items marked REGULAR, use 'add_to_cart'. Follow the plan EXACTLY — do NOT recalculate points yourself. NEVER pass '[previously redeemed with points]' into the tool arguments.
+CRITICAL RESPONSE FORMAT FOR REORDERS: Whenever you process a reorder involving '[previously redeemed with points]' items, you MUST explicitly list out EVERY single item you added to their cart! If any item was marked REGULAR in the plan, you MUST append this exact fixed sentence to the end of your response: "Items that did not have enough points to redeem were added as regular items." NEVER include the text "Reward Redemption" or "redeemed with points" (whether in brackets, parentheses, or plain text) anywhere in your response unless the item was ACTUALLY successfully redeemed with points in this transaction!
 IMPORTANT: If the user explicitly asks to remove ALL items or clear their entire bag/cart, you MUST use the clear_cart tool to wipe it cleanly. If the user asks to remove ONLY redeem items (e.g. "remove all redeem items"), you MUST use the remove_all_redeem_items tool instead of clear_cart.
 CRITICAL: If the user modifies an item they already have in their cart (e.g. "make ONE of the chicken sandwiches no pickle" or "make one of regular sandwiches no tomato"), you MUST use the update_item_modifiers tool! Do NOT remove and re-add it, and DO NOT use add_to_cart. You must pass the specific 'cart_item_id' of the item. If the cart item has a quantity > 1, and the user only wants to modify SOME of them, you MUST pass the 'quantity_to_modify' parameter to specify how many should receive the new modifiers.
 CRITICAL AI TARGETING RULE: When a user asks to modify an item to match another (e.g. "make the other one no pickle too" or "make the other..."), you MUST carefully read the cart context and select the cart_item_id of the item that DOES NOT YET have those modifiers! Do NOT select the ID of an item that already perfectly matches the requested modifiers.
