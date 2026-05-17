@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" class="overflow-y-scroll">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CFB Fresh</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23ba0026'/><text x='50' y='72' font-family='system-ui, sans-serif' font-weight='900' font-size='60' fill='white' text-anchor='middle'>C</text></svg>">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .material-symbols-outlined[data-weight="fill"] {
+      font-variation-settings: 'FILL' 1;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-up {
+      animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-in-out forwards;
+    }
+    body {
+      min-height: max(884px, 100dvh);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+  </style>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-fixed": "#1b1c1c", "secondary": "#5f5e5e", "on-surface": "#1a1c1c",
+            "on-secondary-container": "#656464", "surface-tint": "#bf0028", "surface": "#f9f9f9",
+            "surface-container-lowest": "#ffffff", "error-container": "#ffdad6", "secondary-fixed": "#e4e2e1",
+            "surface-variant": "#e2e2e2", "inverse-on-surface": "#f1f1f1", "on-secondary-fixed-variant": "#474747",
+            "on-tertiary": "#ffffff", "on-tertiary-container": "#fffbf9", "tertiary-container": "#986c00",
+            "surface-container": "#eeeeee", "on-tertiary-fixed-variant": "#5e4200", "surface-dim": "#dadada",
+            "primary": "#ba0026", "surface-container-low": "#f3f3f3", "surface-container-high": "#e8e8e8",
+            "surface-container-highest": "#e2e2e2", "on-primary": "#ffffff", "on-primary-container": "#fffbff",
+            "on-error": "#ffffff", "primary-container": "#e51636", "on-secondary": "#ffffff",
+            "surface-bright": "#f9f9f9", "tertiary": "#785500", "on-background": "#1a1c1c",
+            "secondary-fixed-dim": "#c8c6c6", "primary-fixed-dim": "#ffb3b1", "on-surface-variant": "#5d3f3e",
+            "primary-fixed": "#ffdad8", "inverse-primary": "#ffb3b1", "outline": "#926e6d",
+            "tertiary-fixed-dim": "#ffba20", "outline-variant": "#e7bcbb", "background": "#f9f9f9",
+            "tertiary-fixed": "#ffdea8", "on-tertiary-fixed": "#271900", "on-error-container": "#93000a",
+            "on-primary-fixed-variant": "#92001c", "inverse-surface": "#2f3131", "error": "#ba1a1a",
+            "on-primary-fixed": "#410007", "secondary-container": "#e4e2e1"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"
+          },
+          "spacing": {
+            "container-padding": "20px", "stack-sm": "4px", "stack-lg": "24px", "gutter": "16px",
+            "stack-md": "12px", "base": "8px", "section-gap": "32px", "safe": "env(safe-area-inset-bottom, 20px)"
+          },
+          "fontFamily": {
+            "body-lg": ["Plus Jakarta Sans"], "headline-lg-mobile": ["Plus Jakarta Sans"],
+            "label-sm": ["Plus Jakarta Sans"], "display-lg": ["Plus Jakarta Sans"],
+            "headline-lg": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"],
+            "label-lg": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "headline-lg-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "700" }],
+            "label-sm": ["12px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "headline-lg": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+            "headline-md": ["18px", { "lineHeight": "24px", "fontWeight": "700" }],
+            "label-lg": ["14px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background text-on-surface font-body-lg min-h-screen flex flex-col pb-[100px] overflow-y-scroll">
+
+  <div id="app" class="flex flex-col flex-grow">
+    <!-- Header injected dynamically based on page -->
+    <div id="header-container"></div>
+
+    <!-- Page Container -->
+    <main id="page-container" class="flex-grow"></main>
+    
+    <!-- Chat Widget Overlay -->
+    <div id="chat-overlay" class="hidden">
+      <div class="fixed inset-0 bg-black/40 z-40" onclick="toggleChat()"></div>
+      <div class="fixed left-1/2 -translate-x-1/2 z-50 w-[90%] md:w-[400px] h-[60%] bg-surface-container-lowest rounded-2xl shadow-xl flex flex-col" style="top: calc(56px + 8px);">
+        <div class="absolute -top-2 right-[60px] w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-surface-container-lowest"></div>
+        <div class="flex justify-between items-center px-4 pt-3 pb-2 border-b border-surface-variant">
+          <span class="text-label-lg font-label-lg flex items-center gap-1 text-primary"><span class="material-symbols-outlined text-[18px]">auto_awesome</span> Bessie</span>
+          <button onclick="toggleChat()" class="material-symbols-outlined text-secondary">close</button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-stack-lg overflow-y-auto flex flex-col gap-3">
+          <div class="bg-surface-container p-3 rounded-2xl rounded-tl-sm self-start max-w-[85%] shadow-sm">
+            <p class="text-body-sm font-body-sm text-on-surface">Hi! I'm Bessie. How can I help you today?</p>
+          </div>
+        </div>
+        <div class="p-stack-md border-t border-surface-variant flex items-center gap-2">
+          <div class="flex-1 relative">
+            <input id="chat-input" class="w-full bg-surface-container-low border border-surface-variant rounded-full py-2 px-4 text-body-sm font-body-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="Type a message..." type="text" onkeydown="if(event.key==='Enter')sendChatMessage()">
+          </div>
+          <button onclick="sendChatMessage()" class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center flex-shrink-0 hover:bg-primary-container transition-colors shadow-sm">
+            <span class="material-symbols-outlined text-[20px]" data-icon="send">send</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container" class="fixed top-20 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
+
+    <!-- BottomNavBar -->
+    <nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-container-padding py-stack-md bg-surface dark:bg-surface pb-safe rounded-t-xl shadow-[0_-4px_20px_0_rgba(0,0,0,0.08)]">
+      <button onclick="navigate('home')" data-page="home" class="nav-link flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed gap-stack-sm hover:bg-surface-container-lowest dark:hover:bg-surface-container-highest transition-all p-2 rounded-lg">
+        <span class="material-symbols-outlined text-[24px]">home</span>
+        <span class="text-label-sm font-label-sm">Home</span>
+      </button>
+      <button onclick="navigate('menu')" data-page="menu" class="nav-link flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed gap-stack-sm hover:bg-surface-container-lowest dark:hover:bg-surface-container-highest transition-all p-2 rounded-lg">
+        <span class="material-symbols-outlined text-[24px]">restaurant_menu</span>
+        <span class="text-label-sm font-label-sm">Menu</span>
+      </button>
+      <button onclick="navigate('rewards')" data-page="rewards" class="nav-link flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed gap-stack-sm hover:bg-surface-container-lowest dark:hover:bg-surface-container-highest transition-all p-2 rounded-lg">
+        <span class="material-symbols-outlined text-[24px]">loyalty</span>
+        <span class="text-label-sm font-label-sm">Rewards</span>
+      </button>
+      <button onclick="navigate('account')" data-page="account" class="nav-link flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed gap-stack-sm hover:bg-surface-container-lowest dark:hover:bg-surface-container-highest transition-all p-2 rounded-lg">
+        <span class="material-symbols-outlined text-[24px]">person</span>
+        <span class="text-label-sm font-label-sm">Account</span>
+      </button>
+    </nav>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

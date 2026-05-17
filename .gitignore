@@ -1,0 +1,39 @@
+# Dependency directories
+node_modules/
+backend/node_modules/
+
+# Local env files
+.env
+.env.*
+backend/.env
+
+# SQLite databases and WAL files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+backend/db/chickfilb.db
+database.sqlite
+
+# Log files
+*.log
+backend/server.log
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test and scratch scripts
+test_*.js
+backend/test_*.js
+backend/update_images*.js
+backend/update_seed.js
