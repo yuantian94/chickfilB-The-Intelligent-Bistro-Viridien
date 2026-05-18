@@ -83,10 +83,10 @@ export default function HomeScreen() {
           </View>
         </View>
         <View style={styles.headerRight}>
-          <Pressable onPress={() => router.push('/chat')} style={styles.iconBtn}>
+          <Pressable onPress={() => router.navigate('/chat')} style={styles.iconBtn}>
             <Ionicons name="sparkles" size={22} color={Colors.primary} />
           </Pressable>
-          <Pressable onPress={() => router.push('/cart')} style={styles.iconBtn}>
+          <Pressable onPress={() => router.navigate('/cart')} style={styles.iconBtn}>
             <View>
               <Ionicons name="bag-handle-outline" size={22} color={Colors.primary} />
               {cartCount > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{cartCount > 9 ? '9+' : cartCount}</Text></View>}

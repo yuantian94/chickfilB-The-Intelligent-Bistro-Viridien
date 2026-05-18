@@ -33,10 +33,10 @@ export default function TabLayout() {
         headerTitleStyle: { fontWeight: '700', fontSize: 18 },
         headerRight: () => (
           <View style={{ flexDirection: 'row', gap: 4, marginRight: 12 }}>
-            <Pressable onPress={() => router.push('/chat')} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 6 })}>
+            <Pressable onPress={() => router.navigate('/chat')} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 6 })}>
               <Ionicons name="sparkles" size={22} color={Colors.primary} />
             </Pressable>
-            <Pressable onPress={() => router.push('/cart')} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 6 })}>
+            <Pressable onPress={() => router.navigate('/cart')} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 6 })}>
               <View>
                 <Ionicons name="bag-handle-outline" size={22} color={Colors.primary} />
                 {cartCount > 0 && (
