@@ -50,12 +50,12 @@ export default function GuestCheckoutScreen() {
         'Order Placed! 🎉',
         `Total: $${data.total.toFixed(2)}\nReceipt will be sent to ${email}\n\nCreate an account to earn ${Math.floor(data.total * 10)} reward points from this order?`,
         [
-          { text: 'No Thanks', style: 'cancel', onPress: () => { router.dismiss(); } },
+          { text: 'No Thanks', style: 'cancel', onPress: () => { router.dismissAll(); } },
           {
             text: 'Create Account',
             onPress: () => {
-              router.dismiss();
-              router.navigate({ pathname: '/(tabs)/account', params: { prefillEmail: email, showRegister: '1' } });
+              router.dismissAll();
+              setTimeout(() => router.navigate({ pathname: '/(tabs)/account', params: { prefillEmail: email, showRegister: '1' } }), 100);
             }
           },
         ]

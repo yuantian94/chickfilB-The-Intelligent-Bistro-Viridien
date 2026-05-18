@@ -96,7 +96,7 @@ export default function CheckoutScreen() {
       });
       await refreshUser();
       await refreshCart();
-      Alert.alert('Success', 'Order placed successfully! 🎉', [{ text: 'OK', onPress: () => { router.dismiss(); router.dismiss(); } }]);
+      Alert.alert('Success', 'Order placed successfully! 🎉', [{ text: 'OK', onPress: () => router.dismissAll() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to place order');
     }

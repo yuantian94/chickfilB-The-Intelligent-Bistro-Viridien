@@ -113,7 +113,7 @@ export default function RewardsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20, paddingBottom: 120, gap: 24 }} keyboardShouldPersistTaps="handled">
       {/* Points Banner */}
       <View style={styles.banner}>
-        <Text style={styles.bannerTitle}>{tierName} Member</Text>
+        <Text style={styles.bannerTitle}>{tierName === 'Member' ? 'Member' : `${tierName} Member`}</Text>
         <Text style={styles.bannerPoints}>{totalBudget.toLocaleString()}</Text>
         <Text style={styles.bannerPts}>pts available</Text>
         {data?.tierInfo?.next ? <Text style={styles.bannerSub}>{data.pointsToNext?.toLocaleString()} points until {data.tierInfo.next.charAt(0).toUpperCase() + data.tierInfo.next.slice(1)}</Text> : <Text style={styles.bannerSub}>You are at the highest tier!</Text>}
