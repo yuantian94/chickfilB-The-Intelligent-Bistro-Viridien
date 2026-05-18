@@ -77,8 +77,9 @@ export default function CustomizeItemScreen() {
       }
       await refreshCart();
       router.back();
-    } catch {
-      Alert.alert('Error', 'Failed to update preferences');
+    } catch (e: any) {
+      console.error('Customize save error:', e);
+      Alert.alert('Error', e?.message || 'Failed to update preferences');
     }
   };
 

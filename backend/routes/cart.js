@@ -89,62 +89,67 @@ router.put('/:id', authenticate, (req, res) => {
 
 // Update cart item modifiers
 router.put('/:id/modifiers', authenticate, (req, res) => {
-  const { modifiers, quantityToUpdate } = req.body;
-  const db = getDb();
-  
-  const item = db.prepare('SELECT * FROM cart_items WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
-  if (!item) return res.status(404).json({ error: 'Cart item not found' });
-  
-  const qty = Math.min(quantityToUpdate || item.quantity, item.quantity);
-  if (qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
+  try {
+    const { modifiers, quantityToUpdate } = req.body;
+    const db = getDb();
+    
+    const item = db.prepare('SELECT * FROM cart_items WHERE id = ? AND user_id = ?').get(Number(req.params.id), req.user.id);
+    if (!item) return res.status(404).json({ error: 'Cart item not found' });
+    
+    const qty = Math.min(quantityToUpdate || item.quantity, item.quantity);
+    if (qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
 
-  const modsStr = JSON.stringify(modifiers);
+    const modsStr = JSON.stringify(modifiers);
 
-  if (qty === item.quantity) {
-    const existing = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND id != ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, modsStr, item.id, item.special_instructions);
-    if (existing) {
-      db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing.id);
-      db.prepare('DELETE FROM cart_items WHERE id = ?').run(item.id);
-    } else {
-      db.prepare('UPDATE cart_items SET modifiers = ? WHERE id = ?').run(modsStr, item.id);
-    }
-  } else {
-    let remainderModsStr = item.modifiers;
-    if (modsStr === item.modifiers) {
-      try {
-        const parsed = JSON.parse(item.modifiers || '[]');
-        const rewardMod = parsed.find(m => m.points_cost);
-        remainderModsStr = rewardMod ? JSON.stringify([rewardMod]) : '[]';
-      } catch(e) {
-        remainderModsStr = '[]';
+    if (qty === item.quantity) {
+      const existing = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND id != ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, modsStr, item.id, item.special_instructions);
+      if (existing) {
+        db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing.id);
+        db.prepare('DELETE FROM cart_items WHERE id = ?').run(item.id);
+      } else {
+        db.prepare('UPDATE cart_items SET modifiers = ? WHERE id = ?').run(modsStr, item.id);
       }
-    }
-
-    const remainderQty = item.quantity - qty;
-    db.prepare('DELETE FROM cart_items WHERE id = ?').run(item.id);
-
-    const existing1 = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, modsStr, item.special_instructions);
-    if (existing1) {
-      db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing1.id);
     } else {
-      db.prepare(
-        `INSERT INTO cart_items (user_id, menu_item_id, quantity, modifiers, special_instructions) VALUES (?, ?, ?, ?, ?)`
-      ).run(req.user.id, item.menu_item_id, qty, modsStr, item.special_instructions);
-    }
+      let remainderModsStr = item.modifiers;
+      if (modsStr === item.modifiers) {
+        try {
+          const parsed = JSON.parse(item.modifiers || '[]');
+          const rewardMod = parsed.find(m => m.points_cost);
+          remainderModsStr = rewardMod ? JSON.stringify([rewardMod]) : '[]';
+        } catch(e) {
+          remainderModsStr = '[]';
+        }
+      }
 
-    if (remainderQty > 0) {
-      const existing2 = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, remainderModsStr, item.special_instructions);
-      if (existing2) {
-        db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(remainderQty, existing2.id);
+      const remainderQty = item.quantity - qty;
+      db.prepare('DELETE FROM cart_items WHERE id = ?').run(item.id);
+
+      const existing1 = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, modsStr, item.special_instructions);
+      if (existing1) {
+        db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing1.id);
       } else {
         db.prepare(
           `INSERT INTO cart_items (user_id, menu_item_id, quantity, modifiers, special_instructions) VALUES (?, ?, ?, ?, ?)`
-        ).run(req.user.id, item.menu_item_id, remainderQty, remainderModsStr, item.special_instructions);
+        ).run(req.user.id, item.menu_item_id, qty, modsStr, item.special_instructions);
+      }
+
+      if (remainderQty > 0) {
+        const existing2 = db.prepare('SELECT * FROM cart_items WHERE user_id = ? AND menu_item_id = ? AND modifiers = ? AND special_instructions = ?').get(req.user.id, item.menu_item_id, remainderModsStr, item.special_instructions);
+        if (existing2) {
+          db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(remainderQty, existing2.id);
+        } else {
+          db.prepare(
+            `INSERT INTO cart_items (user_id, menu_item_id, quantity, modifiers, special_instructions) VALUES (?, ?, ?, ?, ?)`
+          ).run(req.user.id, item.menu_item_id, remainderQty, remainderModsStr, item.special_instructions);
+        }
       }
     }
+    
+    res.json({ message: 'Modifiers updated' });
+  } catch (err) {
+    console.error('Cart modifier update error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update modifiers' });
   }
-  
-  res.json({ message: 'Modifiers updated' });
 });
 
 // Remove item from cart

@@ -110,8 +110,9 @@ export async function updateGuestCartItemModifiers(cartItemId: number, modifiers
     headers: await guestHeaders(),
     body: JSON.stringify({ modifiers, quantityToUpdate }),
   });
-  if (!res.ok) throw new Error('Update failed');
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Update failed');
+  return data;
 }
 
 export async function guestCheckoutApi(body: any) {
@@ -223,8 +224,9 @@ export async function updateCartItemModifiers(cartItemId: number, modifiers: any
     headers: await authHeaders(),
     body: JSON.stringify({ modifiers, quantityToUpdate }),
   });
-  if (!res.ok) throw new Error('Update failed');
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Update failed');
+  return data;
 }
 
 export async function clearCartApi() {
