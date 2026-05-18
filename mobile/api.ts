@@ -104,6 +104,16 @@ export async function clearGuestCart() {
   await fetch(`${BASE_URL}/guest/cart`, { method: 'DELETE', headers: await guestHeaders() });
 }
 
+export async function updateGuestCartItemModifiers(cartItemId: number, modifiers: any[], quantityToUpdate: number) {
+  const res = await fetch(`${BASE_URL}/guest/cart/${cartItemId}/modifiers`, {
+    method: 'PUT',
+    headers: await guestHeaders(),
+    body: JSON.stringify({ modifiers, quantityToUpdate }),
+  });
+  if (!res.ok) throw new Error('Update failed');
+  return res.json();
+}
+
 export async function guestCheckoutApi(body: any) {
   const res = await fetch(`${BASE_URL}/guest/checkout`, {
     method: 'POST',

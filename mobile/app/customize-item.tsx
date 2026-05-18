@@ -3,13 +3,13 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Image, Switch, ActivityI
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
-import { fetchMenuItem, fetchCart, updateCartItemModifiers, resolveImageUrl } from '@/api';
+import { fetchMenuItem, fetchCart, fetchGuestCart, updateCartItemModifiers, updateGuestCartItemModifiers, resolveImageUrl } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 
 export default function CustomizeItemScreen() {
   const router = useRouter();
   const { cartItemId, menuItemId } = useLocalSearchParams<{ cartItemId: string; menuItemId: string }>();
-  const { refreshCart } = useAuth();
+  const { refreshCart, user } = useAuth();
   const [menuData, setMenuData] = useState<any>(null);
   const [cartItem, setCartItem] = useState<any>(null);
   const [selectedMods, setSelectedMods] = useState<Set<string>>(new Set());
@@ -19,7 +19,7 @@ export default function CustomizeItemScreen() {
 
   useEffect(() => {
     if (!cartItemId || !menuItemId) { router.back(); return; }
-    Promise.all([fetchMenuItem(Number(menuItemId)), fetchCart()]).then(([menu, cart]) => {
+    Promise.all([fetchMenuItem(Number(menuItemId)), user ? fetchCart() : fetchGuestCart()]).then(([menu, cart]) => {
       setMenuData(menu);
       const ci = cart.items?.find((i: any) => i.id === Number(cartItemId));
       if (!ci) { router.back(); return; }
@@ -70,7 +70,11 @@ export default function CustomizeItemScreen() {
 
     try {
       // Backend handles split (q < total) and aggregate (matching existing row) automatically
-      await updateCartItemModifiers(Number(cartItemId), mods, q);
+      if (user) {
+        await updateCartItemModifiers(Number(cartItemId), mods, q);
+      } else {
+        await updateGuestCartItemModifiers(Number(cartItemId), mods, q);
+      }
       await refreshCart();
       router.back();
     } catch {

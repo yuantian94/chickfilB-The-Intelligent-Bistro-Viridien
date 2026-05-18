@@ -99,6 +99,67 @@ router.put('/cart/:id', requireGuestToken, (req, res) => {
   res.json({ message: 'Cart updated' });
 });
 
+// Update guest cart item modifiers
+router.put('/cart/:id/modifiers', requireGuestToken, (req, res) => {
+  const { modifiers, quantityToUpdate } = req.body;
+  const db = getDb();
+
+  const item = db.prepare('SELECT * FROM guest_cart_items WHERE id = ? AND guest_token = ?').get(req.params.id, req.guestToken);
+  if (!item) return res.status(404).json({ error: 'Cart item not found' });
+
+  // Strip any reward modifiers for guests
+  const cleanMods = (modifiers || []).filter(m => !m.points_cost);
+  const modsStr = JSON.stringify(cleanMods);
+
+  const qty = Math.min(quantityToUpdate || item.quantity, item.quantity);
+  if (qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
+
+  if (qty === item.quantity) {
+    // Updating all — check if there's an existing row with same modifiers to merge into
+    const existing = db.prepare(
+      'SELECT * FROM guest_cart_items WHERE guest_token = ? AND menu_item_id = ? AND modifiers = ? AND id != ?'
+    ).get(req.guestToken, item.menu_item_id, modsStr, item.id);
+    if (existing) {
+      db.prepare('UPDATE guest_cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing.id);
+      db.prepare('DELETE FROM guest_cart_items WHERE id = ?').run(item.id);
+    } else {
+      db.prepare('UPDATE guest_cart_items SET modifiers = ? WHERE id = ?').run(modsStr, item.id);
+    }
+  } else {
+    // Splitting: modify `qty` items, leave remainder unchanged
+    const remainderQty = item.quantity - qty;
+    db.prepare('DELETE FROM guest_cart_items WHERE id = ?').run(item.id);
+
+    // Insert modified portion (or merge)
+    const existing1 = db.prepare(
+      'SELECT * FROM guest_cart_items WHERE guest_token = ? AND menu_item_id = ? AND modifiers = ?'
+    ).get(req.guestToken, item.menu_item_id, modsStr);
+    if (existing1) {
+      db.prepare('UPDATE guest_cart_items SET quantity = quantity + ? WHERE id = ?').run(qty, existing1.id);
+    } else {
+      db.prepare(
+        'INSERT INTO guest_cart_items (guest_token, menu_item_id, quantity, modifiers) VALUES (?, ?, ?, ?)'
+      ).run(req.guestToken, item.menu_item_id, qty, modsStr);
+    }
+
+    // Insert remainder (or merge)
+    if (remainderQty > 0) {
+      const existing2 = db.prepare(
+        'SELECT * FROM guest_cart_items WHERE guest_token = ? AND menu_item_id = ? AND modifiers = ?'
+      ).get(req.guestToken, item.menu_item_id, item.modifiers);
+      if (existing2) {
+        db.prepare('UPDATE guest_cart_items SET quantity = quantity + ? WHERE id = ?').run(remainderQty, existing2.id);
+      } else {
+        db.prepare(
+          'INSERT INTO guest_cart_items (guest_token, menu_item_id, quantity, modifiers) VALUES (?, ?, ?, ?)'
+        ).run(req.guestToken, item.menu_item_id, remainderQty, item.modifiers);
+      }
+    }
+  }
+
+  res.json({ message: 'Modifiers updated' });
+});
+
 // Clear guest cart
 router.delete('/cart', requireGuestToken, (req, res) => {
   const db = getDb();
