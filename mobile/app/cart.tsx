@@ -50,7 +50,7 @@ export default function CartScreen() {
         <View style={{ alignItems: 'center', paddingTop: 60, gap: 12 }}>
           <Ionicons name="bag-outline" size={64} color={Colors.surfaceVariant} />
           <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.onSurface }}>Your bag is empty</Text>
-          <Pressable onPress={() => { router.back(); setTimeout(() => router.push('/(tabs)/menu'), 100); }} style={styles.browseBtn}>
+          <Pressable onPress={() => { router.dismiss(); setTimeout(() => router.navigate('/(tabs)/menu'), 100); }} style={styles.browseBtn}>
             <Text style={{ fontSize: 14, fontWeight: '600' }}>Browse Menu</Text>
           </Pressable>
         </View>

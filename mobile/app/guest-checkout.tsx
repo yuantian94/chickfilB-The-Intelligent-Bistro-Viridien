@@ -55,7 +55,7 @@ export default function GuestCheckoutScreen() {
             text: 'Create Account',
             onPress: () => {
               router.dismiss();
-              router.push({ pathname: '/(tabs)/account', params: { prefillEmail: email, showRegister: '1' } });
+              router.navigate({ pathname: '/(tabs)/account', params: { prefillEmail: email, showRegister: '1' } });
             }
           },
         ]

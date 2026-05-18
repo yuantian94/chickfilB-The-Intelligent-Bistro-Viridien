@@ -56,7 +56,7 @@ export default function HomeScreen() {
   }
 
   const handleAddToCart = async (id: number) => {
-    if (!user) { router.push('/(tabs)/account'); return; }
+    if (!user) { router.navigate('/(tabs)/account'); return; }
     try {
       const data = await addToCartApi(id);
       await refreshCart();
@@ -77,7 +77,7 @@ export default function HomeScreen() {
           </View>
           <View>
             <Text style={styles.greeting}>{user ? 'Good Morning,' : 'Welcome,'}</Text>
-            <Pressable onPress={() => !user && router.push('/(tabs)/account')}>
+            <Pressable onPress={() => !user && router.navigate('/(tabs)/account')}>
               <Text style={styles.userName}>{user ? user.name.split(' ')[0] : 'Sign In'}</Text>
             </Pressable>
           </View>
@@ -97,7 +97,7 @@ export default function HomeScreen() {
 
       <View style={styles.content}>
         {/* Rewards Card */}
-        <Pressable onPress={() => router.push('/(tabs)/rewards')} style={styles.rewardsCard}>
+        <Pressable onPress={() => router.navigate('/(tabs)/rewards')} style={styles.rewardsCard}>
           <View style={styles.rewardsTop}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rewardsTitle}>CFB Fresh Rewards</Text>
@@ -126,7 +126,7 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Orders</Text>
-              <Pressable onPress={() => router.push('/(tabs)/account')}>
+              <Pressable onPress={() => router.navigate('/(tabs)/account')}>
                 <Text style={styles.viewAll}>View all</Text>
               </Pressable>
             </View>
@@ -183,7 +183,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured & Seasonal</Text>
-            <Pressable onPress={() => router.push('/(tabs)/menu')}>
+            <Pressable onPress={() => router.navigate('/(tabs)/menu')}>
               <Text style={styles.viewAll}>View Menu</Text>
             </Pressable>
           </View>
