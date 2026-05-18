@@ -26,6 +26,18 @@ export default function AccountScreen() {
     }, [user])
   );
 
+  // React to navigation params (e.g. from guest checkout "Create Account" prompt)
+  useEffect(() => {
+    if (params.showRegister === '1') {
+      setIsRegister(true);
+      setEmail(params.prefillEmail || '');
+      setPassword('');
+      setConfirmPwd('');
+      setName('');
+      setError('');
+    }
+  }, [params.showRegister, params.prefillEmail]);
+
   const handleLogin = async () => {
     setLoggingIn(true);
     setError('');
